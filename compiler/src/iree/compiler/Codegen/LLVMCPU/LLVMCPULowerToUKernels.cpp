@@ -102,6 +102,59 @@ getFnNameAndDefAttrs(const char *ukernelName, RewriterBase &rewriter,
   return result;
 }
 
+/// Matches an (linalg.fill -> )? linalg.matmul operation sequence and converts
+/// it into a iree_codegen.ukernel.generic "aie_matmul_f32" operation, that is later lowered
+/// into a call to the microkernel.
+static FailureOr<IREE::Codegen::UKernelOpInterface>
+matchDAGForUKernel(RewriterBase &rewriter, linalg::MatmulOp op,
+                   bool skipIntermediateRoundings) {
+  Value lhs = op.getDpsInputOperand(0)->get();
+  Value rhs = op.getDpsInputOperand(1)->get();
+  Value out = op.getDpsInitOperand(0)->get();
+  auto lhsType = llvm::cast<ShapedType>(lhs.getType());
+  auto rhsType = llvm::cast<ShapedType>(rhs.getType());
+  auto outType = llvm::cast<ShapedType>(out.getType());
+  Type lhsElemType = lhsType.getElementType();
+  Type rhsElemType = rhsType.getElementType();
+  Type outElemType = outType.getElementType();
+  uint32_t flags = 0;
+  if (lhsElemType.isSignlessInteger(8) && rhsElemType.isSignlessInteger(8) &&
+      outElemType.isSignlessInteger(32)) {
+    flags = 0;
+  } else if (lhsElemType.isF32() && rhsElemType.isF32() &&
+             outElemType.isF32()) {
+    flags = 1;
+  } else {
+    return rewriter.notifyMatchFailure(
+        op, "unsupported combination of element types");
+  }
+
+  Location loc = op.getLoc();
+  Value m = rewriter.create<tensor::DimOp>(loc, lhs, 0);
+  Value n = rewriter.create<tensor::DimOp>(loc, rhs, 0);
+  Value k = rewriter.create<tensor::DimOp>(loc, rhs, 1);
+
+  auto getDimAsI32 = [](RewriterBase &rewriter, Location loc, Value value,
+                        int dim) -> Value {
+    return rewriter.create<arith::IndexCastOp>(
+        loc, rewriter.getI32Type(),
+        rewriter.create<tensor::DimOp>(loc, value, dim));
+  };
+  Value m0 = getDimAsI32(rewriter, loc, lhs, 2);
+  Value n0 = getDimAsI32(rewriter, loc, rhs, 2);
+  Value k0 = getDimAsI32(rewriter, loc, rhs, 3);
+  Value flagsVal = rewriter.create<arith::ConstantOp>(
+      loc, rewriter.getI32IntegerAttr(flags));
+  auto targetAttr = IREE::HAL::ExecutableTargetAttr::lookup(op);
+  auto fn = getFnNameAndDefAttrs("aie_matmul_f32", rewriter, targetAttr);
+  auto genericMicroKernelOp = rewriter.create<IREE::Codegen::UKernelGenericOp>(
+      loc, outType, fn.name, ValueRange{lhs, rhs}, out,
+      ValueRange{m, n, k, m0, n0, k0, flagsVal},
+      /*fn_def_attrs=*/rewriter.getDictionaryAttr(fn.defAttrs),
+      /*strided_outer_dims=*/rewriter.getIndexAttr(1));
+  return cast<IREE::Codegen::UKernelOpInterface>(
+      genericMicroKernelOp.getOperation());
+}
 /// Matches an (linalg.fill -> )? linalg.mmt4d operation sequence and converts
 /// it into a iree_codegen.ukernel.mmt4d operation, that is later lowered
 /// into a call to the microkernel.
@@ -504,6 +557,8 @@ void LLVMCPULowerToUKernelsPass::runOnOperation() {
   // performance, and that consideration overrides the benefit of fusions for
   // these ops.
   auto allTargets = [](auto target) { return true; };
+  patterns.insert<LowerToUKernelPattern<linalg::MatmulOp>>(
+      context, allTargets, skipIntermediateRoundings);
   patterns.insert<LowerToUKernelPattern<linalg::Mmt4DOp>>(
       context, allTargets, skipIntermediateRoundings);
   // These patterns could in principle be used on LLVMCPU, not just VMVX, but
