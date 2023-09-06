@@ -55,6 +55,11 @@ static llvm::cl::opt<bool> clEnablePadConsumerFusion(
     llvm::cl::desc("Flag to enable the fusion for pad + consumer"),
     llvm::cl::init(false));
 
+static llvm::cl::opt<bool> clEnableAccelUKernels(
+    "iree-llvmcpu-enable-accel-ukernels",
+    llvm::cl::desc("Flag to enable lowering to accelUkernels"),
+    llvm::cl::init(false));
+
 static llvm::cl::opt<bool> clEnableMicrokernelsDecomposeLinalgGeneric(
     "iree-vmvx-enable-microkernels-decompose-linalg-generic",
     llvm::cl::desc("Enables decomposition of linalg.generic ops when "
@@ -609,6 +614,8 @@ void addMmt4dTilingExpertPassPipeline(OpPassManager &passManager,
   if (enableMicrokernels) {
     nestedModulePM.addNestedPass<func::FuncOp>(
         createDecomposeBatchMmt4DOpsPass());
+    nestedModulePM.addPass(
+        createLLVMCPULowerToAccelUKernelsPass(clSkipIntermediateRoundings));
     nestedModulePM.addPass(
         createLLVMCPULowerToUKernelsPass(clSkipIntermediateRoundings));
   } else {
