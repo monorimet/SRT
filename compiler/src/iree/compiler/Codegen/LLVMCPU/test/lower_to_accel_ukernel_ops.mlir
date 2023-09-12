@@ -18,6 +18,8 @@ func.func @matmul_f32f32f32(%arg0 : tensor<?x?xf32>, %arg1 : tensor<?x?xf32>, %a
 // CHECK-SAME:       ins(%[[ARG0]], %[[ARG1]] :
 // CHECK-SAME:       outs(%[[ARG2]] :
 // CHECK-SAME:       (%[[M]], %[[N]], %[[K]] :
+//  CHECK-DAG:       "processor_id"
+//  CHECK-DAG:       "processor_data"
 //      CHECK:   return %[[MICRO_KERNEL]]
 
 // -----
