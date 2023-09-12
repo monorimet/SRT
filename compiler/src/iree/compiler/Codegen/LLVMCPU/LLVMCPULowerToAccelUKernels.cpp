@@ -23,6 +23,12 @@
 #include "mlir/IR/TypeRange.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
+// DO NOT SUBMIT:
+#include "absl/log/log.h"
+#include "mlir/Support/DebugStringHelper.h"
+
+
+
 namespace mlir {
 namespace iree_compiler {
 
@@ -154,6 +160,8 @@ struct LowerToAccelUKernelPattern : OpRewritePattern<OpType> {
 } // namespace
 
 void LLVMCPULowerToAccelUKernelsPass::runOnOperation() {
+  LOG(INFO) << "xxxxx " << debugString(*getOperation());
+
   MLIRContext *context = &getContext();
   RewritePatternSet patterns(context);
   // Enabling a lowering of an op to a microkernel is a trade-off between the
@@ -175,6 +183,8 @@ void LLVMCPULowerToAccelUKernelsPass::runOnOperation() {
           applyPatternsAndFoldGreedily(getOperation(), std::move(patterns)))) {
     return signalPassFailure();
   }
+
+  LOG(INFO) << "xxxxx " << debugString(*getOperation());
 }
 
 std::unique_ptr<OperationPass<>>

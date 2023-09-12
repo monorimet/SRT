@@ -77,6 +77,7 @@ iree_cc_library(
     "VectorContractCustomKernels.cpp"
     "VerifyLinalgTransformLegality.cpp"
   DEPS
+    absl::log  # DO NOT SUBMIT
     ::PassHeaders
     ::PassesIncGen
     IREELinalgExtDialect
