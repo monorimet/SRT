@@ -101,7 +101,7 @@ matchDAGForUKernel(RewriterBase &rewriter, linalg::MatmulOp op) {
   Value k = rewriter.create<tensor::DimOp>(loc, rhs, 1);
 
   auto targetAttr = IREE::HAL::ExecutableTargetAttr::lookup(op);
-  auto fn = getFnNameAndDefAttrs("aie_matmul_f32", rewriter, targetAttr);
+  auto fn = getFnNameAndDefAttrs("matmul_f32", rewriter, targetAttr);
   auto genericMicroKernelOp = rewriter.create<IREE::Codegen::UKernelGenericOp>(
       loc, outType, fn.name, ValueRange{lhs, rhs}, out, ValueRange{m, n, k},
       /*fn_def_attrs=*/rewriter.getDictionaryAttr(fn.defAttrs),
