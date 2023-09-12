@@ -112,20 +112,13 @@ matchDAGForUKernel(RewriterBase &rewriter, linalg::MatmulOp op) {
 
 namespace {
 
-using TargetPredicate = std::function<bool(IREE::HAL::ExecutableTargetAttr)>;
-
 template <typename OpType>
 struct LowerToAccelUKernelPattern : OpRewritePattern<OpType> {
-  LowerToAccelUKernelPattern(MLIRContext *context,
-                             TargetPredicate targetPredicate)
-      : OpRewritePattern<OpType>(context), targetPredicate(targetPredicate) {}
+  LowerToAccelUKernelPattern(MLIRContext *context)
+      : OpRewritePattern<OpType>(context) {}
 
   LogicalResult matchAndRewrite(OpType op,
                                 PatternRewriter &rewriter) const override {
-    if (targetPredicate &&
-        !targetPredicate(IREE::HAL::ExecutableTargetAttr::lookup(op))) {
-      return failure();
-    }
     FailureOr<IREE::Codegen::UKernelOpInterface> ukernelOp =
         matchDAGForUKernel(rewriter, op);
     if (failed(ukernelOp)) {
@@ -135,8 +128,6 @@ struct LowerToAccelUKernelPattern : OpRewritePattern<OpType> {
     rewriter.replaceOp(op, ukernelOp.value()->getResults());
     return success();
   }
-
-  TargetPredicate targetPredicate;
 };
 
 } // namespace
@@ -151,14 +142,7 @@ void LLVMCPULowerToAccelUKernelsPass::runOnOperation() {
   // Since microkernels are linked as bitcode, they will still undergo LTO-like
   // optimization in their calling contexts, but we shouldn't expect this to
   // achieve similar results as fusing structured ops.
-
-  // These patterns are unconditionally enabled, because we have strong evidence
-  // that it is difficult for codegen to consistently approach microkernels
-  // performance, and that consideration overrides the benefit of fusions for
-  // these ops.
-  auto allTargets = [](auto target) { return true; };
-  patterns.insert<LowerToAccelUKernelPattern<linalg::MatmulOp>>(context,
-                                                                allTargets);
+  patterns.insert<LowerToAccelUKernelPattern<linalg::MatmulOp>>(context);
   if (failed(
           applyPatternsAndFoldGreedily(getOperation(), std::move(patterns)))) {
     return signalPassFailure();
