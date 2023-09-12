@@ -30,8 +30,7 @@ namespace {
 class LLVMCPULowerToAccelUKernelsPass
     : public LLVMCPULowerToAccelUKernelsBase<LLVMCPULowerToAccelUKernelsPass> {
 public:
-  LLVMCPULowerToAccelUKernelsPass(bool skipIntermediateRoundings)
-      : skipIntermediateRoundings(skipIntermediateRoundings) {}
+  LLVMCPULowerToAccelUKernelsPass() = default;
 
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<IREE::Codegen::IREECodegenDialect>();
@@ -43,15 +42,8 @@ public:
     if (failed(Pass::initializeOptions(options))) {
       return failure();
     }
-    // This option defaults to `true` both in Passes.td and in C++ code.
-    // If either side has `false`, that's a non-default choice, so we let that
-    // override a `true` on the other side.
-    skipIntermediateRoundings &= optionSkipIntermediateRoundings;
     return success();
   }
-
-private:
-  bool skipIntermediateRoundings;
 };
 } // namespace
 
@@ -89,8 +81,7 @@ getFnNameAndDefAttrs(const char *ukernelName, RewriterBase &rewriter,
 /// it into a iree_codegen.ukernel.generic "aie_matmul_f32" operation, that is
 /// later lowered into a call to the microkernel.
 static FailureOr<IREE::Codegen::UKernelOpInterface>
-matchDAGForUKernel(RewriterBase &rewriter, linalg::MatmulOp op,
-                   bool skipIntermediateRoundings) {
+matchDAGForUKernel(RewriterBase &rewriter, linalg::MatmulOp op) {
   Value lhs = op.getDpsInputOperand(0)->get();
   Value rhs = op.getDpsInputOperand(1)->get();
   Value out = op.getDpsInitOperand(0)->get();
@@ -126,10 +117,8 @@ using TargetPredicate = std::function<bool(IREE::HAL::ExecutableTargetAttr)>;
 template <typename OpType>
 struct LowerToAccelUKernelPattern : OpRewritePattern<OpType> {
   LowerToAccelUKernelPattern(MLIRContext *context,
-                             TargetPredicate targetPredicate,
-                             bool skipIntermediateRoundings = false)
-      : OpRewritePattern<OpType>(context), targetPredicate(targetPredicate),
-        skipIntermediateRoundings(skipIntermediateRoundings) {}
+                             TargetPredicate targetPredicate)
+      : OpRewritePattern<OpType>(context), targetPredicate(targetPredicate) {}
 
   LogicalResult matchAndRewrite(OpType op,
                                 PatternRewriter &rewriter) const override {
@@ -138,7 +127,7 @@ struct LowerToAccelUKernelPattern : OpRewritePattern<OpType> {
       return failure();
     }
     FailureOr<IREE::Codegen::UKernelOpInterface> ukernelOp =
-        matchDAGForUKernel(rewriter, op, skipIntermediateRoundings);
+        matchDAGForUKernel(rewriter, op);
     if (failed(ukernelOp)) {
       return rewriter.notifyMatchFailure(
           op, "failed to find microkernel op to replace with");
@@ -148,7 +137,6 @@ struct LowerToAccelUKernelPattern : OpRewritePattern<OpType> {
   }
 
   TargetPredicate targetPredicate;
-  bool skipIntermediateRoundings;
 };
 
 } // namespace
@@ -169,18 +157,16 @@ void LLVMCPULowerToAccelUKernelsPass::runOnOperation() {
   // performance, and that consideration overrides the benefit of fusions for
   // these ops.
   auto allTargets = [](auto target) { return true; };
-  patterns.insert<LowerToAccelUKernelPattern<linalg::MatmulOp>>(
-      context, allTargets, skipIntermediateRoundings);
+  patterns.insert<LowerToAccelUKernelPattern<linalg::MatmulOp>>(context,
+                                                                allTargets);
   if (failed(
           applyPatternsAndFoldGreedily(getOperation(), std::move(patterns)))) {
     return signalPassFailure();
   }
 }
 
-std::unique_ptr<OperationPass<>>
-createLLVMCPULowerToAccelUKernelsPass(bool skipIntermediateRoundings) {
-  return std::make_unique<LLVMCPULowerToAccelUKernelsPass>(
-      skipIntermediateRoundings);
+std::unique_ptr<OperationPass<>> createLLVMCPULowerToAccelUKernelsPass() {
+  return std::make_unique<LLVMCPULowerToAccelUKernelsPass>();
 }
 
 } // namespace iree_compiler

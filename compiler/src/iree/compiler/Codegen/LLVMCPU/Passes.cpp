@@ -614,8 +614,7 @@ void addMmt4dTilingExpertPassPipeline(OpPassManager &passManager,
   if (enableMicrokernels) {
     nestedModulePM.addNestedPass<func::FuncOp>(
         createDecomposeBatchMmt4DOpsPass());
-    nestedModulePM.addPass(
-        createLLVMCPULowerToAccelUKernelsPass(clSkipIntermediateRoundings));
+    nestedModulePM.addPass(createLLVMCPULowerToAccelUKernelsPass());
     nestedModulePM.addPass(
         createLLVMCPULowerToUKernelsPass(clSkipIntermediateRoundings));
   } else {
