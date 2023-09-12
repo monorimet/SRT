@@ -80,14 +80,7 @@ getFnNameAndDefAttrs(const char *ukernelName, RewriterBase &rewriter,
   result.name = ukernelName;
   result.defAttrs.emplace_back(
     rewriter.getStringAttr("hal.import.fields"),
-    rewriter.getArrayAttr({rewriter.getStringAttr("processor_data")}));
-  result.defAttrs.emplace_back(rewriter.getStringAttr("hal.import.bitcode"),
-                               rewriter.getBoolAttr(true));
-  result.defAttrs.emplace_back(
-      rewriter.getStringAttr("hal.import.cconv"),
-      IREE::HAL::CallingConventionAttr::get(
-          rewriter.getContext(),
-          IREE::HAL::CallingConvention::ParameterStruct));
+    rewriter.getArrayAttr({rewriter.getStringAttr("processor_data"), rewriter.getStringAttr("processor_id")}));
   return result;
 }
 
@@ -101,7 +94,14 @@ matchDAGForUKernel(RewriterBase &rewriter, linalg::MatmulOp op,
   Value rhs = op.getDpsInputOperand(1)->get();
   Value out = op.getDpsInitOperand(0)->get();
   auto outType = llvm::cast<ShapedType>(out.getType());
-
+  
+  // Check if the accumulator is zero-filled.
+  if (isInitializedToZero(out)) {
+    // The plugin will not read the existing accumulator, so its defining op can be discarded.
+    if (auto fillOp = out.getDefiningOp<linalg::FillOp>()) {
+      out = fillOp.getDpsInitOperand(0)->get();
+    }
+  }
   Location loc = op.getLoc();
   Value m = rewriter.create<tensor::DimOp>(loc, lhs, 0);
   Value n = rewriter.create<tensor::DimOp>(loc, rhs, 0);
@@ -113,43 +113,9 @@ matchDAGForUKernel(RewriterBase &rewriter, linalg::MatmulOp op,
       loc, outType, fn.name, ValueRange{lhs, rhs}, out,
       ValueRange{m, n, k},
       /*fn_def_attrs=*/rewriter.getDictionaryAttr(fn.defAttrs),
-      /*strided_outer_dims=*/rewriter.getIndexAttr(1));
+      /*strided_outer_dims=*/rewriter.getIndexAttr(0));
   return cast<IREE::Codegen::UKernelOpInterface>(
       genericMicroKernelOp.getOperation());
-}
-
-static uint32_t flagForUser(IREE::LinalgExt::EncodingUser user) {
-  switch (user) {
-  case IREE::LinalgExt::EncodingUser::MATMUL_F32F32F32:
-    return IREE_UK_FLAG_QUERY_TILE_SIZES_OPERATION_MATMUL_F32F32F32;
-  case IREE::LinalgExt::EncodingUser::MATMUL_I8I8I32:
-    return IREE_UK_FLAG_QUERY_TILE_SIZES_OPERATION_MATMUL_I8I8I32;
-  case IREE::LinalgExt::EncodingUser::MATMUL_F16F16F32:
-    return IREE_UK_FLAG_QUERY_TILE_SIZES_OPERATION_MATMUL_F16F16F32;
-  case IREE::LinalgExt::EncodingUser::MATMUL_F16F16F16:
-    return IREE_UK_FLAG_QUERY_TILE_SIZES_OPERATION_MATMUL_F16F16F16;
-  case IREE::LinalgExt::EncodingUser::MATMUL_BF16BF16F32:
-    return IREE_UK_FLAG_QUERY_TILE_SIZES_OPERATION_MATMUL_BF16BF16F32;
-  case IREE::LinalgExt::EncodingUser::MATMUL_BF16BF16BF16:
-    return IREE_UK_FLAG_QUERY_TILE_SIZES_OPERATION_MATMUL_BF16BF16BF16;
-  default: // Unreachable.
-    assert(false);
-    return IREE_UK_FLAG_QUERY_TILE_SIZES_OPERATION_NONE;
-  }
-}
-
-static uint32_t flagForRole(IREE::LinalgExt::EncodingRole role) {
-  switch (role) {
-  case IREE::LinalgExt::EncodingRole::LHS:
-    return IREE_UK_FLAG_QUERY_TILE_SIZES_OPERAND_ROLE_LHS;
-  case IREE::LinalgExt::EncodingRole::RHS:
-    return IREE_UK_FLAG_QUERY_TILE_SIZES_OPERAND_ROLE_RHS;
-  case IREE::LinalgExt::EncodingRole::RESULT:
-    return IREE_UK_FLAG_QUERY_TILE_SIZES_OPERAND_ROLE_RESULT;
-  default: // Unreachable.
-    assert(false);
-    return IREE_UK_FLAG_QUERY_TILE_SIZES_OPERAND_ROLE_LHS;
-  }
 }
 
 namespace {
