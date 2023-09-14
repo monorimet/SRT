@@ -79,14 +79,15 @@ getFnNameAndDefAttrs(const char *ukernelName, RewriterBase &rewriter,
   FnNameAndDefAttrs result;
   result.name = ukernelName;
   result.defAttrs.emplace_back(
-    rewriter.getStringAttr("hal.import.fields"),
-    rewriter.getArrayAttr({rewriter.getStringAttr("processor_data"), rewriter.getStringAttr("processor_id")}));
+      rewriter.getStringAttr("hal.import.fields"),
+      rewriter.getArrayAttr({rewriter.getStringAttr("processor_data"),
+                             rewriter.getStringAttr("processor_id")}));
   return result;
 }
 
 /// Matches an (linalg.fill -> )? linalg.matmul operation sequence and converts
-/// it into a iree_codegen.ukernel.generic "aie_matmul_f32" operation, that is later lowered
-/// into a call to the microkernel.
+/// it into a iree_codegen.ukernel.generic "aie_matmul_f32" operation, that is
+/// later lowered into a call to the microkernel.
 static FailureOr<IREE::Codegen::UKernelOpInterface>
 matchDAGForUKernel(RewriterBase &rewriter, linalg::MatmulOp op,
                    bool skipIntermediateRoundings) {
@@ -94,10 +95,11 @@ matchDAGForUKernel(RewriterBase &rewriter, linalg::MatmulOp op,
   Value rhs = op.getDpsInputOperand(1)->get();
   Value out = op.getDpsInitOperand(0)->get();
   auto outType = llvm::cast<ShapedType>(out.getType());
-  
+
   // Check if the accumulator is zero-filled.
   if (isInitializedToZero(out)) {
-    // The plugin will not read the existing accumulator, so its defining op can be discarded.
+    // The plugin will not read the existing accumulator, so its defining op can
+    // be discarded.
     if (auto fillOp = out.getDefiningOp<linalg::FillOp>()) {
       out = fillOp.getDpsInitOperand(0)->get();
     }
@@ -110,8 +112,7 @@ matchDAGForUKernel(RewriterBase &rewriter, linalg::MatmulOp op,
   auto targetAttr = IREE::HAL::ExecutableTargetAttr::lookup(op);
   auto fn = getFnNameAndDefAttrs("aie_matmul_f32", rewriter, targetAttr);
   auto genericMicroKernelOp = rewriter.create<IREE::Codegen::UKernelGenericOp>(
-      loc, outType, fn.name, ValueRange{lhs, rhs}, out,
-      ValueRange{m, n, k},
+      loc, outType, fn.name, ValueRange{lhs, rhs}, out, ValueRange{m, n, k},
       /*fn_def_attrs=*/rewriter.getDictionaryAttr(fn.defAttrs),
       /*strided_outer_dims=*/rewriter.getIndexAttr(0));
   return cast<IREE::Codegen::UKernelOpInterface>(
@@ -124,8 +125,9 @@ using TargetPredicate = std::function<bool(IREE::HAL::ExecutableTargetAttr)>;
 
 template <typename OpType>
 struct LowerToAccelUKernelPattern : OpRewritePattern<OpType> {
-  LowerToAccelUKernelPattern(MLIRContext *context, TargetPredicate targetPredicate,
-                        bool skipIntermediateRoundings = false)
+  LowerToAccelUKernelPattern(MLIRContext *context,
+                             TargetPredicate targetPredicate,
+                             bool skipIntermediateRoundings = false)
       : OpRewritePattern<OpType>(context), targetPredicate(targetPredicate),
         skipIntermediateRoundings(skipIntermediateRoundings) {}
 
