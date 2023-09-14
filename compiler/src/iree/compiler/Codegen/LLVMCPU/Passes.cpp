@@ -665,7 +665,6 @@ void addAccelMatmulExpertPassPipeline(OpPassManager &passManager,
   nestedModulePM.addNestedPass<func::FuncOp>(createCSEPass());
 
   addBufferizePasses(nestedModulePM);
-
 }
 
 void addCPUDataTilingPipeline(OpPassManager &passManager,
