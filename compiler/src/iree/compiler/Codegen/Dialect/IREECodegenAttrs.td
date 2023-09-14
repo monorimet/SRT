@@ -55,6 +55,8 @@ def SPIRV_WinogradVectorize
 
 def VMVX_Default : I32EnumAttrCase<"VMVXDefault", 24>;
 
+def CPU_AccelMatmulExpert
+    : I32EnumAttrCase<"AccelMatmulExpert", 25>;
 
 def Linalg_TransformDialectCodegen
     : I32EnumAttrCase<"TransformDialectCodegen", 100>;
@@ -76,7 +78,7 @@ def DispatchLoweringPassPipelineEnum
             LLVMGPU_PackUnPack, LLVMGPU_MatmulTensorCoreMmaSync,
             SPIRV_BaseLowering, SPIRV_BaseDistribute, SPIRV_BaseVectorize,
             SPIRV_MatmulPromoteVectorize, SPIRV_CooperativeMatrixVectorize,
-            SPIRV_SubgroupReduce, SPIRV_WinogradVectorize, VMVX_Default,
+            SPIRV_SubgroupReduce, SPIRV_WinogradVectorize, VMVX_Default, CPU_AccelMatmulExpert,
             // Transform dialect based codegen
             Linalg_TransformDialectCodegen, None
           ]> {
