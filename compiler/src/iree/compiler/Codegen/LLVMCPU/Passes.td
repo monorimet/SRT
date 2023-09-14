@@ -94,7 +94,7 @@ def LLVMCPULowerToAccelUKernels :
       "mlir::iree_compiler::createLLVMCPULowerToAccelUKernelsPass()";
   let options = [
     Option<"optionSkipIntermediateRoundings", "skip-intermediate-roundings",
-      "bool", /*default=*/"true",
+      "bool", /*default=*/"false",
       "Allow skipping intermediate roundings, e.g. in f16 ukernels internally doing f32 arithmetic.">,
   ];
 }
