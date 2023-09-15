@@ -78,8 +78,8 @@ getFnNameAndDefAttrs(const char *ukernelName, RewriterBase &rewriter,
 }
 
 /// Matches an (linalg.fill -> )? linalg.matmul operation sequence and converts
-/// it into a iree_codegen.ukernel.generic "aie_matmul_f32" operation, that is
-/// later lowered into a call to the microkernel.
+/// it into a iree_codegen.ukernel.generic "matmul_f32" operation, that is later
+/// lowered into a call to the microkernel.
 static FailureOr<IREE::Codegen::UKernelOpInterface>
 matchDAGForUKernel(RewriterBase &rewriter, linalg::MatmulOp op) {
   Value lhs = op.getDpsInputOperand(0)->get();
