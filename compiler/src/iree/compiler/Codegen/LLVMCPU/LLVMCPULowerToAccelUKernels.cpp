@@ -27,6 +27,7 @@ namespace mlir {
 namespace iree_compiler {
 
 namespace {
+
 class LLVMCPULowerToAccelUKernelsPass
     : public LLVMCPULowerToAccelUKernelsBase<LLVMCPULowerToAccelUKernelsPass> {
 public:
@@ -45,7 +46,6 @@ public:
     return success();
   }
 };
-} // namespace
 
 /// Returns `true` if an `outsOperand` value is initialized to zero.
 static bool isInitializedToZero(Value outsOperand) {
@@ -110,8 +110,6 @@ matchDAGForUKernel(RewriterBase &rewriter, linalg::MatmulOp op) {
       genericMicroKernelOp.getOperation());
 }
 
-namespace {
-
 template <typename OpType>
 struct LowerToAccelUKernelPattern : OpRewritePattern<OpType> {
   LowerToAccelUKernelPattern(MLIRContext *context)
@@ -130,8 +128,6 @@ struct LowerToAccelUKernelPattern : OpRewritePattern<OpType> {
   }
 };
 
-} // namespace
-
 void LLVMCPULowerToAccelUKernelsPass::runOnOperation() {
   MLIRContext *context = &getContext();
   RewritePatternSet patterns(context);
@@ -148,6 +144,8 @@ void LLVMCPULowerToAccelUKernelsPass::runOnOperation() {
     return signalPassFailure();
   }
 }
+
+} // namespace
 
 std::unique_ptr<OperationPass<>> createLLVMCPULowerToAccelUKernelsPass() {
   return std::make_unique<LLVMCPULowerToAccelUKernelsPass>();
