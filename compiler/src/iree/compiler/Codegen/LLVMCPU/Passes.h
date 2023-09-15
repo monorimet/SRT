@@ -50,8 +50,7 @@ createLLVMCPULowerToUKernelsPass(bool skipIntermediateRoundings = true);
 
 /// Pass to lower a sequence of operations to a iree_codegen.ukernel.*
 /// operation.
-std::unique_ptr<OperationPass<>>
-createLLVMCPULowerToAccelUKernelsPass(bool skipIntermediateRoundings = true);
+std::unique_ptr<OperationPass<>> createLLVMCPULowerToAccelUKernelsPass();
 
 std::unique_ptr<OperationPass<func::FuncOp>>
 createLLVMCPUMmt4dVectorLoweringPass();

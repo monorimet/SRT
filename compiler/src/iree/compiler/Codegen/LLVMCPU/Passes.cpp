@@ -614,8 +614,7 @@ void addMmt4dTilingExpertPassPipeline(OpPassManager &passManager,
   if (enableMicrokernels) {
     nestedModulePM.addNestedPass<func::FuncOp>(
         createDecomposeBatchMmt4DOpsPass());
-    nestedModulePM.addPass(
-        createLLVMCPULowerToAccelUKernelsPass(clSkipIntermediateRoundings));
+    nestedModulePM.addPass(createLLVMCPULowerToAccelUKernelsPass());
     nestedModulePM.addPass(
         createLLVMCPULowerToUKernelsPass(clSkipIntermediateRoundings));
   } else {
@@ -648,8 +647,7 @@ void addAccelMatmulExpertPassPipeline(OpPassManager &passManager,
   OpPassManager &nestedModulePM = passManager.nest<ModuleOp>();
 
   if (enableAccelMicrokernels) {
-    nestedModulePM.addPass(
-        createLLVMCPULowerToAccelUKernelsPass(clSkipIntermediateRoundings));
+    nestedModulePM.addPass(createLLVMCPULowerToAccelUKernelsPass());
   } else {
     nestedModulePM.addNestedPass<func::FuncOp>(createLLVMCPUTileAndFusePass(
         static_cast<int64_t>(tilingConfig.getVectorCommonParallelLevel())));
