@@ -647,8 +647,7 @@ void addAccelMatmulExpertPassPipeline(OpPassManager &passManager,
   OpPassManager &nestedModulePM = passManager.nest<ModuleOp>();
 
   if (enableAccelMicrokernels) {
-    nestedModulePM.addPass(
-        createLLVMCPULowerToAccelUKernelsPass(clSkipIntermediateRoundings));
+    nestedModulePM.addPass(createLLVMCPULowerToAccelUKernelsPass());
   } else {
     nestedModulePM.addNestedPass<func::FuncOp>(createLLVMCPUTileAndFusePass(
         static_cast<int64_t>(tilingConfig.getVectorCommonParallelLevel())));
