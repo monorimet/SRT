@@ -78,8 +78,8 @@ getFnNameAndDefAttrs(const char *ukernelName, RewriterBase &rewriter,
 }
 
 /// Matches an (linalg.fill -> )? linalg.matmul operation sequence and converts
-/// it into a iree_codegen.ukernel.generic "aie_matmul_f32" operation, that is
-/// later lowered into a call to the microkernel.
+/// it into a iree_codegen.ukernel.generic "accel_matmul_f32" operation, that is later lowered
+/// into a call to the microkernel.
 static FailureOr<IREE::Codegen::UKernelOpInterface>
 matchDAGForUKernel(RewriterBase &rewriter, linalg::MatmulOp op) {
   Value lhs = op.getDpsInputOperand(0)->get();
@@ -101,7 +101,7 @@ matchDAGForUKernel(RewriterBase &rewriter, linalg::MatmulOp op) {
   Value k = rewriter.create<tensor::DimOp>(loc, rhs, 1);
 
   auto targetAttr = IREE::HAL::ExecutableTargetAttr::lookup(op);
-  auto fn = getFnNameAndDefAttrs("aie_matmul_f32", rewriter, targetAttr);
+  auto fn = getFnNameAndDefAttrs("accel_matmul_f32", rewriter, targetAttr);
   auto genericMicroKernelOp = rewriter.create<IREE::Codegen::UKernelGenericOp>(
       loc, outType, fn.name, ValueRange{lhs, rhs}, out, ValueRange{m, n, k},
       /*fn_def_attrs=*/rewriter.getDictionaryAttr(fn.defAttrs),
