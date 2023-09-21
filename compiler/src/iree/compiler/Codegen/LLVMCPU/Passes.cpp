@@ -55,9 +55,9 @@ static llvm::cl::opt<bool> clEnablePadConsumerFusion(
     llvm::cl::desc("Flag to enable the fusion for pad + consumer"),
     llvm::cl::init(false));
 
-static llvm::cl::opt<bool> clEnableAccelMicrokernels(
+static llvm::cl::opt<bool> clEnableAccelUkernels(
     "iree-llvmcpu-enable-accel-ukernels",
-    llvm::cl::desc("Flag to enable lowering to accelUkernels"),
+    llvm::cl::desc("Flag to enable lowering matmuls to accel microkernels"),
     llvm::cl::init(false));
 
 static llvm::cl::opt<bool> clEnableMicrokernelsDecomposeLinalgGeneric(
@@ -377,14 +377,17 @@ void addCPUBufferOpsTileAndVectorizePipeline(OpPassManager &passManager,
 void addDoubleTilingPadExpertPassPipeline(OpPassManager &passManager,
                                           TilingConfig &tilingConfig,
                                           bool enableVectorMasking) {
-  addTileAndDistributePasses(passManager);
 
+  addTileAndDistributePasses(passManager);
+  
   OpPassManager &nestedModulePM = passManager.nest<ModuleOp>();
+  if (clEnableAccelUkernels) {
+    nestedModulePM.addPass(createLLVMCPULowerToAccelUKernelsPass());
+  } 
   nestedModulePM.addNestedPass<func::FuncOp>(createLLVMCPUTileAndFusePass(
       tilingConfig.getVectorCommonParallelLevel()));
   nestedModulePM.addNestedPass<func::FuncOp>(
       createLLVMCPUTensorPadPass(LLVMCPUTensorPadOption::ParallelDims));
-
   nestedModulePM.addNestedPass<func::FuncOp>(
       createLLVMCPUTilePass(tilingConfig.getVectorReductionLevel()));
   nestedModulePM.addNestedPass<func::FuncOp>(
@@ -456,7 +459,9 @@ void addMultiTilingExpertPassPipeline(
   addTileAndDistributePasses(passManager);
 
   OpPassManager &nestedModulePM = passManager.nest<ModuleOp>();
-
+  if (clEnableAccelUkernels) {
+    nestedModulePM.addPass(createLLVMCPULowerToAccelUKernelsPass());
+  }
   SmallVector<int64_t> allFusableLevels(tilingConfig.getFusableLevels());
   // Apply tile and fuse to all the non-distribution fusable levels. Skip
   // distribution level as that level has been fused already.
@@ -614,7 +619,6 @@ void addMmt4dTilingExpertPassPipeline(OpPassManager &passManager,
   if (enableMicrokernels) {
     nestedModulePM.addNestedPass<func::FuncOp>(
         createDecomposeBatchMmt4DOpsPass());
-    nestedModulePM.addPass(createLLVMCPULowerToAccelUKernelsPass());
     nestedModulePM.addPass(
         createLLVMCPULowerToUKernelsPass(clSkipIntermediateRoundings));
   } else {
@@ -638,33 +642,59 @@ void addMmt4dTilingExpertPassPipeline(OpPassManager &passManager,
         createLLVMCPUMmt4dVectorLoweringPass());
   }
 }
-
+/*
 void addAccelMatmulExpertPassPipeline(OpPassManager &passManager,
                                       TilingConfig &tilingConfig,
-                                      bool enableAccelMicrokernels) {
+                                      bool enablePadding) {
   addTileAndDistributePasses(passManager);
 
   OpPassManager &nestedModulePM = passManager.nest<ModuleOp>();
+  nestedModulePM.addPass(createLLVMCPULowerToAccelUKernelsPass());
+  nestedModulePM.addNestedPass<func::FuncOp>(createLLVMCPUTileAndFusePass(
+      tilingConfig.getVectorCommonParallelLevel()));
+  nestedModulePM.addNestedPass<func::FuncOp>(
+      createLLVMCPUTensorPadPass(LLVMCPUTensorPadOption::ParallelDims));
 
-  if (enableAccelMicrokernels) {
-    nestedModulePM.addPass(createLLVMCPULowerToAccelUKernelsPass());
-  } else {
-    nestedModulePM.addNestedPass<func::FuncOp>(createLLVMCPUTileAndFusePass(
-        static_cast<int64_t>(tilingConfig.getVectorCommonParallelLevel())));
-    nestedModulePM.addNestedPass<func::FuncOp>(createLLVMCPUTilePass(
-        static_cast<int64_t>(tilingConfig.getVectorReductionLevel())));
+  nestedModulePM.addNestedPass<func::FuncOp>(
+      createLLVMCPUTilePass(tilingConfig.getVectorReductionLevel()));
+  nestedModulePM.addNestedPass<func::FuncOp>(
+      createLLVMCPUTensorPadPass(LLVMCPUTensorPadOption::ReductionDims));
+  nestedModulePM.addNestedPass<func::FuncOp>(createLLVMCPUTileAndFusePass(
+      (tilingConfig.getVectorCommonParallelLevel())));
+  nestedModulePM.addNestedPass<func::FuncOp>(
+      createLLVMCPUTensorPadPass(LLVMCPUTensorPadOption::ParallelDims));
+
+  nestedModulePM.addNestedPass<func::FuncOp>(
+      createLLVMCPUTilePass(tilingConfig.getVectorReductionLevel()));
+  nestedModulePM.addNestedPass<func::FuncOp>(
+      createLLVMCPUTensorPadPass(LLVMCPUTensorPadOption::ReductionDims));
+
+  {
+    GenericVectorizationPassOptions options;
+    options.vectorizePadding = true;
+    options.vectorizeGatherAccesses = true;
     nestedModulePM.addNestedPass<func::FuncOp>(
-        createGenericVectorizationPass());
+        createGenericVectorizationPass(options));
     nestedModulePM.addNestedPass<func::FuncOp>(
         createHoistRedundantVectorTransfersPass());
+    nestedModulePM.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+    nestedModulePM.addNestedPass<func::FuncOp>(createCSEPass());
   }
 
-  nestedModulePM.addNestedPass<func::FuncOp>(createCanonicalizerPass());
-  nestedModulePM.addNestedPass<func::FuncOp>(createCSEPass());
-
   addBufferizePasses(nestedModulePM);
-}
 
+  // Run IREE specific passes before vector lowering expert.
+  nestedModulePM.addNestedPass<func::FuncOp>(
+      createRemoveSingleIterationLoopPass());
+
+  {
+    LLVMCPUVectorLoweringPassOptions options;
+    options.splitVectorTransfersTo = "linalg-copy";
+    nestedModulePM.addNestedPass<func::FuncOp>(
+        createLLVMCPUVectorLoweringPass(options));
+  }
+}
+*/
 void addCPUDataTilingPipeline(OpPassManager &passManager,
                               TilingConfig &tilingConfig,
                               bool enableVectorMasking) {

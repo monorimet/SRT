@@ -82,7 +82,7 @@ private:
           "hal.executable.variants, so might be useful when there is "
           "only one such operation. The specified pass pipeline is "
           "expected to work on the std.module op within the "
-          "hal.executable.variant operation")};
+          "hal.executable.variant operation")};  
 };
 } // namespace
 
@@ -236,7 +236,6 @@ void LLVMCPULowerExecutableTargetPass::runOnOperation() {
           (isAArch64(target) && hasAnySVEFeature(target));
 
       bool enableMicrokernels = hasMicrokernels(target);
-      bool enableAccelMicrokernels = isX86(target);
       bool enableAArch64SSVE = isAArch64(target) && hasAnySVEFeature(target) &&
                                hasSMEFeature(target);
       if (!testLoweringConfiguration) {
@@ -289,13 +288,6 @@ void LLVMCPULowerExecutableTargetPass::runOnOperation() {
           TilingConfig tilingConfig = getTilingConfigForPipeline(moduleOp);
           addMmt4dTilingExpertPassPipeline(executableLoweringPipeline,
                                            tilingConfig, enableMicrokernels);
-          break;
-        }
-        case IREE::Codegen::DispatchLoweringPassPipeline::AccelMatmulExpert: {
-          TilingConfig tilingConfig = getTilingConfigForPipeline(moduleOp);
-          addAccelMatmulExpertPassPipeline(executableLoweringPipeline,
-                                           tilingConfig,
-                                           enableAccelMicrokernels);
           break;
         }
         case IREE::Codegen::DispatchLoweringPassPipeline::CPUDataTiling: {

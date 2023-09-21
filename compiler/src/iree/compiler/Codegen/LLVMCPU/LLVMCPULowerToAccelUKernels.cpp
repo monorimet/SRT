@@ -74,6 +74,11 @@ getFnNameAndDefAttrs(const char *ukernelName, RewriterBase &rewriter,
       rewriter.getStringAttr("hal.import.fields"),
       rewriter.getArrayAttr({rewriter.getStringAttr("processor_data"),
                              rewriter.getStringAttr("processor_id")}));
+  result.defAttrs.emplace_back(
+        rewriter.getStringAttr("hal.import.cconv"),
+        IREE::HAL::CallingConventionAttr::get(
+            rewriter.getContext(),
+            IREE::HAL::CallingConvention::ParameterStruct));
   return result;
 }
 
@@ -100,10 +105,22 @@ matchDAGForUKernel(RewriterBase &rewriter, linalg::MatmulOp op) {
   Value n = rewriter.create<tensor::DimOp>(loc, rhs, 0);
   Value k = rewriter.create<tensor::DimOp>(loc, rhs, 1);
 
+  /*
+  auto getDimAsI32 = [](RewriterBase &rewriter, Location loc, Value value,
+                        int dim) -> Value {
+    return rewriter.create<arith::IndexCastOp>(
+        loc, rewriter.getI32Type(),
+        rewriter.create<tensor::DimOp>(loc, value, dim));
+  };
+  Value m0 = getDimAsI32(rewriter, loc, lhs, 2);
+  Value n0 = getDimAsI32(rewriter, loc, rhs, 2);
+  Value k0 = getDimAsI32(rewriter, loc, rhs, 3);
+  */
   auto targetAttr = IREE::HAL::ExecutableTargetAttr::lookup(op);
   auto fn = getFnNameAndDefAttrs("accel_matmul_f32", rewriter, targetAttr);
   auto genericMicroKernelOp = rewriter.create<IREE::Codegen::UKernelGenericOp>(
-      loc, outType, fn.name, ValueRange{lhs, rhs}, out, ValueRange{m, n, k},
+      loc, outType, fn.name, ValueRange{lhs, rhs}, out,
+      ValueRange{m, n, k}, //, m0, n0, k0},
       /*fn_def_attrs=*/rewriter.getDictionaryAttr(fn.defAttrs),
       /*strided_outer_dims=*/rewriter.getIndexAttr(0));
   return cast<IREE::Codegen::UKernelOpInterface>(

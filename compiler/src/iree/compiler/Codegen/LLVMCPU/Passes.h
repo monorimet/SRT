@@ -149,10 +149,6 @@ void addMmt4dTilingExpertPassPipeline(OpPassManager &passManager,
                                       TilingConfig &tilingConfig,
                                       bool enableMicrokernels);
 
-void addAccelMatmulExpertPassPipeline(OpPassManager &passManager,
-                                      TilingConfig &tilingConfig,
-                                      bool enableAccelMicrokernels);
-
 void addMultiTilingExpertPassPipeline(
     OpPassManager &passManager, TilingConfig &tilingConfig, bool enablePeeling,
     bool enableVectorMasking, bool lowerToAVX2, bool enableAArch64SSVE = false);
