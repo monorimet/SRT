@@ -74,6 +74,11 @@ getFnNameAndDefAttrs(const char *ukernelName, RewriterBase &rewriter,
       rewriter.getStringAttr("hal.import.fields"),
       rewriter.getArrayAttr({rewriter.getStringAttr("processor_data"),
                              rewriter.getStringAttr("processor_id")}));
+  result.defAttrs.emplace_back(
+        rewriter.getStringAttr("hal.import.cconv"),
+        IREE::HAL::CallingConventionAttr::get(
+            rewriter.getContext(),
+            IREE::HAL::CallingConvention::ParameterStruct));
   return result;
 }
 
