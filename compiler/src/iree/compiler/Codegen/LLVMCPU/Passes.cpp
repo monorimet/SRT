@@ -55,6 +55,11 @@ static llvm::cl::opt<bool> clEnablePadConsumerFusion(
     llvm::cl::desc("Flag to enable the fusion for pad + consumer"),
     llvm::cl::init(false));
 
+static llvm::cl::opt<bool> clEnableAccelMicrokernels(
+    "iree-llvmcpu-enable-accel-ukernels",
+    llvm::cl::desc("Flag to enable lowering to accelUkernels"),
+    llvm::cl::init(false));
+
 static llvm::cl::opt<bool> clEnableMicrokernelsDecomposeLinalgGeneric(
     "iree-vmvx-enable-microkernels-decompose-linalg-generic",
     llvm::cl::desc("Enables decomposition of linalg.generic ops when "
@@ -609,6 +614,7 @@ void addMmt4dTilingExpertPassPipeline(OpPassManager &passManager,
   if (enableMicrokernels) {
     nestedModulePM.addNestedPass<func::FuncOp>(
         createDecomposeBatchMmt4DOpsPass());
+    nestedModulePM.addPass(createLLVMCPULowerToAccelUKernelsPass());
     nestedModulePM.addPass(
         createLLVMCPULowerToUKernelsPass(clSkipIntermediateRoundings));
   } else {
@@ -631,6 +637,32 @@ void addMmt4dTilingExpertPassPipeline(OpPassManager &passManager,
     nestedModulePM.addNestedPass<func::FuncOp>(
         createLLVMCPUMmt4dVectorLoweringPass());
   }
+}
+
+void addAccelMatmulExpertPassPipeline(OpPassManager &passManager,
+                                      TilingConfig &tilingConfig,
+                                      bool enableAccelMicrokernels) {
+  addTileAndDistributePasses(passManager);
+
+  OpPassManager &nestedModulePM = passManager.nest<ModuleOp>();
+
+  if (enableAccelMicrokernels) {
+    nestedModulePM.addPass(createLLVMCPULowerToAccelUKernelsPass());
+  } else {
+    nestedModulePM.addNestedPass<func::FuncOp>(createLLVMCPUTileAndFusePass(
+        static_cast<int64_t>(tilingConfig.getVectorCommonParallelLevel())));
+    nestedModulePM.addNestedPass<func::FuncOp>(createLLVMCPUTilePass(
+        static_cast<int64_t>(tilingConfig.getVectorReductionLevel())));
+    nestedModulePM.addNestedPass<func::FuncOp>(
+        createGenericVectorizationPass());
+    nestedModulePM.addNestedPass<func::FuncOp>(
+        createHoistRedundantVectorTransfersPass());
+  }
+
+  nestedModulePM.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  nestedModulePM.addNestedPass<func::FuncOp>(createCSEPass());
+
+  addBufferizePasses(nestedModulePM);
 }
 
 void addCPUDataTilingPipeline(OpPassManager &passManager,
