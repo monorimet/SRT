@@ -612,11 +612,11 @@ void addMmt4dTilingExpertPassPipeline(OpPassManager &passManager,
   OpPassManager &nestedModulePM = passManager.nest<ModuleOp>();
 
   if (clEnableAccelMicrokernels) {
-    nestedModulePM. addNestedPass<func::FuncOp>(
+    nestedModulePM.addNestedPass<func::FuncOp>(
 	createDecomposeBatchMmt4DOpsPass());
     nestedModulePM.addPass(
 	createLLVMCPULowerToAccelUKernelsPass());
-    nestedModulePM.addPass(
+    nestedModulePM.addNestedPass<func::FuncOp>(
 	createConvertToDestinationPassingStylePass());
   } else if (enableMicrokernels) {
     nestedModulePM.addNestedPass<func::FuncOp>(
