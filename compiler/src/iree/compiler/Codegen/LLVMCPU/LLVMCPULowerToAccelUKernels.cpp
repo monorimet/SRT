@@ -82,11 +82,11 @@ getFnNameAndDefAttrs(const char *ukernelName, RewriterBase &rewriter,
   return result;
 }
 
-/// Matches an (linalg.fill -> )? linalg.matmul operation sequence and converts
+/// Matches an (linalg.fill -> )? linalg.mmt4d operation sequence and converts
 /// it into a iree_codegen.ukernel.generic "accel_matmul_f32" operation, that is later lowered
 /// into a call to the microkernel.
 static FailureOr<IREE::Codegen::UKernelOpInterface>
-matchDAGForUKernel(RewriterBase &rewriter, linalg::MatmulOp op) {
+matchDAGForUKernel(RewriterBase &rewriter, linalg::Mmt4dOp op) {
   Value lhs = op.getDpsInputOperand(0)->get();
   Value rhs = op.getDpsInputOperand(1)->get();
   Value out = op.getDpsInitOperand(0)->get();
@@ -143,7 +143,7 @@ void LLVMCPULowerToAccelUKernelsPass::runOnOperation() {
   // Since microkernels are linked as bitcode, they will still undergo LTO-like
   // optimization in their calling contexts, but we shouldn't expect this to
   // achieve similar results as fusing structured ops.
-  patterns.insert<LowerToAccelUKernelPattern<linalg::MatmulOp>>(context);
+  patterns.insert<LowerToAccelUKernelPattern<linalg::Mmt4dOp>>(context);
   if (failed(
           applyPatternsAndFoldGreedily(getOperation(), std::move(patterns)))) {
     return signalPassFailure();
